@@ -1,9 +1,9 @@
   const CONFIG = {
         EMAIL: "taonakha2018@gmail.com",
         SHEETS_URL: "https://script.google.com/macros/s/AKfycbzIqAahmlNzzJk6RfZIyjrSmkd_ea7zmoLtcGUNLOZU3cYeoKULYaHpIATUsL-D3iQEDQ/exec",
-        MAX_SENDS: 3,               // สูงสุดต่อ window
-        WINDOW_MS: 60 * 60 * 1000,   // 1 ชั่วโมง
-        COOLDOWN_MS: 60 * 1000       // cooldown 60 วินาที หลังแต่ละครั้ง
+        MAX_SENDS: 3,               
+        WINDOW_MS: 60 * 60 * 1000,   
+        COOLDOWN_MS: 60 * 1000       
     };
 
     /* ── Rate Limit Store (localStorage) ── */
@@ -87,11 +87,11 @@
             if (dot) dot.className = "rate-dot " + (i < used ? "used" : "available");
         });
 
-        if (rateLabel) rateLabel.textContent = `เหลือ ${remaining} / ${CONFIG.MAX_SENDS} ครั้ง`;
+        if (rateLabel) rateLabel.textContent = `remaining ${remaining} / ${CONFIG.MAX_SENDS} times`;
 
         if (remaining <= 0) {
             btn.disabled = true;
-            btn.textContent = "ส่งครบโควต้าแล้ว";
+            btn.textContent = "I've submitted the full quota.";
         } else if (cooldownLeft > 0) {
             btn.disabled = true;
             startCooldownCountdown(cooldownLeft);
@@ -107,7 +107,7 @@
         let remaining = Math.ceil(ms / 1000);
 
         const tick = () => {
-            if (cooldownMsg) cooldownMsg.textContent = `⏳ รอ ${remaining} วินาที ก่อนส่งอีกครั้ง`;
+            if (cooldownMsg) cooldownMsg.textContent = `⏳ Wait ${remaining} seconds before sending again.`;
             remaining--;
             if (remaining < 0) {
                 clearInterval(cooldownTimer);
@@ -165,12 +165,12 @@
                 if (cooldownLeft > 0) {
                     if (feedback) {
                         feedback.style.color = "#fbbf24";
-                        feedback.textContent = "⚠️ กรุณารอ cooldown ก่อนส่งอีกครั้ง";
+                        feedback.textContent = "⚠️ Please wait for the cooldown before sending again.";
                     }
                 } else {
                     if (feedback) {
                         feedback.style.color = "#f87171";
-                        feedback.textContent = "❌ ส่งครบโควต้า 3 ครั้ง/ชั่วโมงแล้ว";
+                        feedback.textContent = "❌ I've submitted the full quota of 3 times per hour.";
                     }
                 }
                 return;
