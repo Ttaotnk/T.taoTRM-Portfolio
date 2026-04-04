@@ -1,19 +1,32 @@
 const PORTFOLIO_SHEETS_URL =
-    "https://script.google.com/macros/s/AKfycbx5oatECw4KAu7ghOrqZl1sD5wRJRIfCmP0xlfFJs-s2n9RIj3DxgX5XORV0gzgAEv9bQ/exec";
+    "https://script.google.com/macros/s/AKfycbzc561qRKmdGnTHb6-8G2lDh1IOBWcYgYmN7bz_HUD1105Avr7KcqpvqmWKYfPjBLGNVg/exec";
+
+// ตั้งค่าหน้า portfolio ที่อนุญาต
+const ALLOWED_PORTFOLIO_BASE = "https://ttaotnk.github.io/T.taoTRM-Portfolio";
 
 async function sendContactSheet(payload) {
-    await fetch(PORTFOLIO_SHEETS_URL, {
+    // ตรวจสอบ URL ก่อนส่ง
+    if (!location.href.startsWith(ALLOWED_PORTFOLIO_BASE)) {
+        throw new Error("❌ Page URL not allowed to send contact sheet.");
+    }
+
+    const res = await fetch(PORTFOLIO_SHEETS_URL, {
         method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
+
+    if (!res.ok) {
+        throw new Error(`❌ Failed to send. Status: ${res.status}`);
+    }
+
+    return res.json(); // ถ้า Apps Script ส่ง JSON กลับ
 }
 
 const CONFIG = {
     MAX_SENDS: 3,
-    WINDOW_MS: 60 * 60 * 1000,
-    COOLDOWN_MS: 60 * 1000
+    WINDOW_MS: 60 * 60 * 1000, // 1 ชั่วโมง
+    COOLDOWN_MS: 60 * 1000     // 1 นาที
 };
 
 function getRateData() {
@@ -27,9 +40,7 @@ function getRateData() {
 }
 
 function saveRateData(data) {
-    try {
-        localStorage.setItem("skydev_rate", JSON.stringify(data));
-    } catch {}
+    try { localStorage.setItem("skydev_rate", JSON.stringify(data)); } catch {}
 }
 
 function getValidSends(data) {
@@ -60,30 +71,13 @@ function recordSend() {
     saveRateData(data);
 }
 
+// --- UI Elements ---
 const form = document.getElementById("contactForm");
 const btn = document.getElementById("submitBtn");
 const feedback = document.getElementById("feedback");
 const cooldownMsg = document.getElementById("cooldown-msg");
 const rateLabel = document.getElementById("rate-label");
 const dots = [0, 1, 2].map(i => document.getElementById(`dot-${i}`));
-const menuToggle = document.getElementById("menuToggle");
-const navLinksList = document.getElementById("navLinks");
-
-if (menuToggle && navLinksList) {
-    menuToggle.addEventListener("click", () => {
-        navLinksList.classList.toggle("active");
-        menuToggle.querySelector("i").classList.toggle("fa-bars");
-        menuToggle.querySelector("i").classList.toggle("fa-times");
-    });
-
-    navLinksList.querySelectorAll("a").forEach(link => {
-        link.addEventListener("click", () => {
-            navLinksList.classList.remove("active");
-            menuToggle.querySelector("i").classList.add("fa-bars");
-            menuToggle.querySelector("i").classList.remove("fa-times");
-        });
-    });
-}
 
 let cooldownTimer = null;
 
@@ -127,55 +121,19 @@ function startCooldownCountdown(ms) {
     cooldownTimer = setInterval(tick, 1000);
 }
 
-const sections = document.querySelectorAll("section[id]");
-const navLinks = document.querySelectorAll(".nav-links a");
-
-document.querySelectorAll('.nav-links a, .hero-actions a, .btn[href^="#"]').forEach(anchor => {
-    anchor.addEventListener("click", function (e) {
-        const targetId = this.getAttribute("href");
-        if (targetId && targetId.startsWith("#")) {
-            e.preventDefault();
-            const targetElement = document.querySelector(targetId);
-            if (targetElement) {
-                targetElement.scrollIntoView({ behavior: "smooth" });
-            }
-        }
-    });
-});
-
-const observerOptions = {
-    rootMargin: "-40% 0px -55% 0px"
-};
-
-const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            navLinks.forEach(a => {
-                a.classList.toggle("active", a.getAttribute("href") === `#${entry.target.id}`);
-            });
-        }
-    });
-}, observerOptions);
-
-sections.forEach(s => observer.observe(s));
-
+// --- Form submit ---
 if (form) {
     form.addEventListener("submit", async e => {
         e.preventDefault();
-
         const { allowed, cooldownLeft } = canSend();
 
         if (!allowed) {
-            if (cooldownLeft > 0) {
-                if (feedback) {
-                    feedback.style.color = "#fbbf24";
-                    feedback.textContent = "⚠️ Please wait for the cooldown before sending again.";
-                }
-            } else {
-                if (feedback) {
-                    feedback.style.color = "#f87171";
-                    feedback.textContent = "❌ I've submitted the full quota of 3 times per hour.";
-                }
+            if (cooldownLeft > 0 && feedback) {
+                feedback.style.color = "#fbbf24";
+                feedback.textContent = "⚠️ Please wait for the cooldown before sending again.";
+            } else if (feedback) {
+                feedback.style.color = "#f87171";
+                feedback.textContent = "❌ I've submitted the full quota of 3 times per hour.";
             }
             return;
         }
@@ -183,7 +141,6 @@ if (form) {
         const name = document.getElementById("name").value.trim();
         const email = document.getElementById("email").value.trim();
         const message = document.getElementById("message").value.trim();
-
         if (!name || !email || !message) {
             if (feedback) feedback.textContent = "❌ Please fill in all fields.";
             return;
@@ -193,7 +150,7 @@ if (form) {
         btn.innerHTML = "⏳ Sending...";
         btn.disabled = true;
 
-        const payload = { name, email, message };
+        const payload = { name, email, message, pageUrl: location.href };
 
         try {
             await sendContactSheet(payload);
@@ -207,7 +164,7 @@ if (form) {
             console.error("Submit error:", err);
             if (feedback) {
                 feedback.style.color = "#f87171";
-                feedback.textContent = "❌ Error! Please try again.";
+                feedback.textContent = err.message || "❌ Error! Please try again.";
             }
         } finally {
             btn.innerHTML = originalText;
