@@ -1,5 +1,5 @@
 const PORTFOLIO_SHEETS_URL =
-  "https://script.google.com/macros/s/YOUR_DEPLOY_ID/exec"; // เปลี่ยนเป็น Deploy ของคุณ
+  "https://script.google.com/macros/s/AKfycbzKIJkTbmIDkK7b8X1he5An8pzkXV14D5OMFXxXKSnBp5EULyntZ1bIyudXcPmpArmZxA/exec"; 
 
 const CONFIG = {
   MAX_SENDS: 3,
