@@ -1,6 +1,6 @@
 const CONFIG = {
   EMAIL: "taonakha2018@gmail.com",
-  SHEETS_URL: "https://script.google.com/macros/s/AKfycbxv9UYw0OI4_R17e0dErmKqQUcghse0mjF91cJigQ0MDtj3z_8oJRPtNOdCMLpXgJp3KQ/exec",
+  SHEETS_URL: "https://script.google.com/macros/s/AKfycbwxuEsPVRlHkBUh7bJhO4ujJx93s59aMeVdWvCkIT1jrcJfmtyix4kaSPbRdWO-gn5u8w/exec",
   MAX_SENDS: 3,
   WINDOW_MS: 60 * 60 * 1000,
   COOLDOWN_MS: 60 * 1000
