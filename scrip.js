@@ -1,6 +1,6 @@
 // ==================== CONFIGURATION ====================
 const FORM_CONFIG = {
-    API_URL: "https://script.google.com/macros/s/AKfycbzHcE3A0HZICOkwKWolRE7FTSrH5rEZc3SK4L3MRwn9uFry0qtqKMeyygBisJSjB9S_ag/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbyPBYKdXVdkjQzAJGDJHRmbfhWpeGTzUyOogNdCHWokk9qiePc8XNptm-N5OOhEoVhIEw/exec",
     MAX_SENDS_PER_HOUR: 3,
     COOLDOWN_MS: 60000,
     FORM_TIMEOUT_MS: 30000,
