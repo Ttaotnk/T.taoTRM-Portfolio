@@ -1,9 +1,7 @@
-  const CONFIG = {
-        EMAIL: "taonakha2018@gmail.com",
-        SHEETS_URL: "https://script.google.com/macros/s/AKfycbzIqAahmlNzzJk6RfZIyjrSmkd_ea7zmoLtcGUNLOZU3cYeoKULYaHpIATUsL-D3iQEDQ/exec",
-        MAX_SENDS: 3,               
-        WINDOW_MS: 60 * 60 * 1000,   
-        COOLDOWN_MS: 60 * 1000       
+const CONFIG = {
+        MAX_SENDS: 3,
+        WINDOW_MS: 60 * 60 * 1000,
+        COOLDOWN_MS: 60 * 1000
     };
 
     /* ── Rate Limit Store (localStorage) ── */
@@ -154,7 +152,10 @@
 
     sections.forEach(s => observer.observe(s));
 
-    /* ── Form Handler (FormSubmit + Google Sheets) ── */
+    const useContactEmail = typeof sendContactEmail === "function";
+    const useContactSheet = typeof sendContactSheet === "function";
+
+    /* ── Form handler: optional gmail.js (email) and/or sheet.js (Sheets) ── */
     if (form) {
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -185,6 +186,15 @@
                 return;
             }
 
+            if (!useContactEmail && !useContactSheet) {
+                if (feedback) {
+                    feedback.style.color = "#f87171";
+                    feedback.textContent =
+                        "❌ Include gmail.js and/or sheet.js before scrip.js.";
+                }
+                return;
+            }
+
             const originalText = btn.innerHTML;
             btn.innerHTML = "⏳ Sending...";
             btn.disabled = true;
@@ -192,26 +202,12 @@
             const payload = { name, email, message };
 
             try {
-                // Endpoint 1: FormSubmit (Email Notification)
-                const emailRes = await fetch(`https://formsubmit.co/ajax/${CONFIG.EMAIL}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        ...payload,
-                        _subject: `Portfolio Contact from ${name}`,
-                        _replyto: email
-                    })
-                });
+                let emailRes = null;
+                if (useContactEmail) emailRes = await sendContactEmail(payload);
+                if (useContactSheet) await sendContactSheet(payload);
 
-                // Endpoint 2: Google Sheets (Database)
-                await fetch(CONFIG.SHEETS_URL, {
-                    method: "POST",
-                    mode: "no-cors",
-                    headers: { "Content-Type": "text/plain" },
-                    body: JSON.stringify(payload)
-                });
-
-                if (emailRes.ok) {
+                const primaryOk = useContactEmail ? emailRes.ok : true;
+                if (primaryOk) {
                     recordSend();
                     if (feedback) {
                         feedback.style.color = "#4ade80";
