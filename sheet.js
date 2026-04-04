@@ -1,11 +1,11 @@
 const PORTFOLIO_SHEETS_URL =
     "https://script.google.com/macros/s/AKfycbzc561qRKmdGnTHb6-8G2lDh1IOBWcYgYmN7bz_HUD1105Avr7KcqpvqmWKYfPjBLGNVg/exec";
 
-// ตั้งค่าหน้า portfolio ที่อนุญาต
-const ALLOWED_PORTFOLIO_BASE = "https://ttaotnk.github.io/T.taoTRM-Portfolio";
+
+const ALLOWED_PORTFOLIO_BASE = "https://ttaotnk.github.io/T.taoTRM-Portfolio/";
 
 async function sendContactSheet(payload) {
-    // ตรวจสอบ URL ก่อนส่ง
+    
     if (!location.href.startsWith(ALLOWED_PORTFOLIO_BASE)) {
         throw new Error("❌ Page URL not allowed to send contact sheet.");
     }
@@ -20,13 +20,13 @@ async function sendContactSheet(payload) {
         throw new Error(`❌ Failed to send. Status: ${res.status}`);
     }
 
-    return res.json(); // ถ้า Apps Script ส่ง JSON กลับ
+    return res.json(); 
 }
 
 const CONFIG = {
     MAX_SENDS: 3,
-    WINDOW_MS: 60 * 60 * 1000, // 1 ชั่วโมง
-    COOLDOWN_MS: 60 * 1000     // 1 นาที
+    WINDOW_MS: 60 * 60 * 1000, 
+    COOLDOWN_MS: 60 * 1000     
 };
 
 function getRateData() {
