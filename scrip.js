@@ -1,19 +1,18 @@
 // ==================== CONFIGURATION ====================
 const FORM_CONFIG = {
-    // *** IMPORTANT: แก้ไข URL นี้หลังจาก Deploy Google Apps Script ***
-    API_URL: "https://script.google.com/macros/s/AKfycbzYCnxhb2kDWDsCV0yQuZtk25Q8hJY8g2DRlF85CP81jK0qVV_vv-3L0rKVBJcCg9T5yw/exec",
-    
+    API_URL: "https://script.google.com/macros/s/AKfycbzHcE3A0HZICOkwKWolRE7FTSrH5rEZc3SK4L3MRwn9uFry0qtqKMeyygBisJSjB9S_ag/exec",
     MAX_SENDS_PER_HOUR: 3,
-    COOLDOWN_MS: 60000, // 60 seconds between sends
+    COOLDOWN_MS: 60000,
     FORM_TIMEOUT_MS: 30000,
-    ENABLE_DEBUG: false
+    SESSION_RETRY_MS: 2000,
+    ENABLE_DEBUG: true
 };
 
 let AUTH_TOKEN = null;
+let currentSessionToken = null;
 
 // ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', function() {
-    initializeToken();
     initializeForm();
     initializeRateLimiter();
     initializeMobileMenu();
@@ -22,8 +21,50 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (FORM_CONFIG.ENABLE_DEBUG) {
         console.log('Form initialized successfully');
+        console.log('🔒 Security: Session Token + Multi-layer Protection');
     }
 });
+
+// ==================== SESSION TOKEN MANAGEMENT ====================
+
+async function getSessionToken() {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(FORM_CONFIG.API_URL, {
+            method: 'GET',
+            mode: 'cors',
+            headers: {
+                'Origin': window.location.origin,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const token = await response.text();
+        
+        if (!token || token.length < 10) {
+            throw new Error('Invalid token received');
+        }
+        
+        if (FORM_CONFIG.ENABLE_DEBUG) {
+            console.log('✅ Session token obtained');
+        }
+        
+        return token;
+        
+    } catch (error) {
+        console.error('Failed to get session token:', error);
+        return null;
+    }
+}
 
 // ==================== MOBILE MENU ====================
 function initializeMobileMenu() {
@@ -40,7 +81,6 @@ function initializeMobileMenu() {
             }
         });
         
-        // Close menu when clicking links
         const links = navLinks.querySelectorAll('a');
         links.forEach(function(link) {
             link.addEventListener('click', function() {
@@ -75,7 +115,6 @@ function initializeSmoothScroll() {
         });
     });
     
-    // Active nav highlight on scroll
     const sections = document.querySelectorAll('section[id]');
     const navLinks = document.querySelectorAll('.nav-links a');
     
@@ -104,82 +143,6 @@ function initializeSmoothScroll() {
     }
 }
 
-// ==================== TOKEN MANAGEMENT ====================
-
-async function initializeToken() {
-    AUTH_TOKEN = await getSecureToken();
-    
-    if (!AUTH_TOKEN) {
-        // First time setup - prompt for token
-        // คุณจะได้ token นี้จาก Google Apps Script console หลังจาก deploy
-        AUTH_TOKEN = prompt('🔐 Enter your authentication token (ได้รับจาก Admin):');
-        if (AUTH_TOKEN && AUTH_TOKEN.length > 0) {
-            await storeSecureToken(AUTH_TOKEN);
-            showFeedback('✅ Token saved successfully!', 'success');
-        } else {
-            console.warn('No token provided, form will not work');
-            const submitBtn = document.getElementById('submitBtn');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = '⚠️ Not Configured';
-            }
-        }
-    }
-}
-
-async function getSecureToken() {
-    try {
-        // Try sessionStorage first (cleared when browser closes)
-        let token = sessionStorage.getItem('form_auth_token');
-        if (token) return token;
-        
-        // Try encrypted localStorage as backup
-        token = localStorage.getItem('form_auth_token_encrypted');
-        if (token) {
-            return await decryptToken(token);
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('Token retrieval error:', error);
-        return null;
-    }
-}
-
-async function storeSecureToken(token) {
-    try {
-        sessionStorage.setItem('form_auth_token', token);
-        const encrypted = await encryptToken(token);
-        localStorage.setItem('form_auth_token_encrypted', encrypted);
-    } catch (error) {
-        console.error('Token storage error:', error);
-    }
-}
-
-async function encryptToken(token) {
-    const salt = btoa((navigator.userAgent || '') + (window.location.hostname || ''));
-    let encrypted = '';
-    for (let i = 0; i < token.length; i++) {
-        encrypted += String.fromCharCode(token.charCodeAt(i) ^ salt.charCodeAt(i % salt.length));
-    }
-    return btoa(encrypted);
-}
-
-async function decryptToken(encryptedToken) {
-    try {
-        const decoded = atob(encryptedToken);
-        const salt = btoa((navigator.userAgent || '') + (window.location.hostname || ''));
-        let decrypted = '';
-        for (let i = 0; i < decoded.length; i++) {
-            decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ salt.charCodeAt(i % salt.length));
-        }
-        return decrypted;
-    } catch (error) {
-        console.error('Token decryption error:', error);
-        return null;
-    }
-}
-
 // ==================== FORM INITIALIZATION ====================
 
 function initializeForm() {
@@ -204,11 +167,8 @@ function initializeForm() {
 function sanitizeInput(input) {
     let value = input.value;
     
-    // Remove HTML tags
     value = value.replace(/<[^>]*>/g, '');
-    // Remove javascript: protocol
     value = value.replace(/javascript:/gi, '');
-    // Remove event handlers
     value = value.replace(/on\w+=/gi, '');
     
     const maxLength = input.getAttribute('maxlength');
@@ -225,16 +185,11 @@ function validateField(input) {
     const value = input.value.trim();
     const id = input.id;
     let isValid = true;
-    let message = '';
     
     switch (id) {
         case 'name':
-            if (value.length < 2) {
+            if (value.length < 2 || value.length > 50) {
                 isValid = false;
-                message = 'Name must be at least 2 characters';
-            } else if (value.length > 50) {
-                isValid = false;
-                message = 'Name is too long (max 50 characters)';
             }
             break;
             
@@ -242,25 +197,14 @@ function validateField(input) {
             const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
             if (!emailRegex.test(value)) {
                 isValid = false;
-                message = 'Please enter a valid email address';
             }
             break;
             
         case 'message':
-            if (value.length < 10) {
+            if (value.length < 10 || value.length > 500) {
                 isValid = false;
-                message = 'Message must be at least 10 characters';
-            } else if (value.length > 500) {
-                isValid = false;
-                message = 'Message is too long (max 500 characters)';
             }
             break;
-    }
-    
-    // Update visual feedback
-    const feedbackEl = document.getElementById('feedback');
-    if (!isValid && message) {
-        // Don't show every validation error in main feedback, just return
     }
     
     input.style.borderColor = isValid ? '#e0e0e0' : '#f87171';
@@ -339,7 +283,6 @@ const rateLimiter = new RateLimiter(
 function initializeRateLimiter() {
     updateRateUI();
     
-    // Update UI every second for cooldown timer
     setInterval(function() {
         updateRateUI();
     }, 1000);
@@ -351,7 +294,6 @@ function updateRateUI() {
     const cooldownLeft = result.cooldownLeft;
     const used = FORM_CONFIG.MAX_SENDS_PER_HOUR - remaining;
     
-    // Update dots
     for (let i = 0; i < 3; i++) {
         const dot = document.getElementById('dot-' + i);
         if (dot) {
@@ -359,13 +301,11 @@ function updateRateUI() {
         }
     }
     
-    // Update label
     const rateLabel = document.getElementById('rate-label');
     if (rateLabel) {
         rateLabel.textContent = 'Remaining: ' + remaining + ' / ' + FORM_CONFIG.MAX_SENDS_PER_HOUR;
     }
     
-    // Update button
     const btn = document.getElementById('submitBtn');
     if (btn) {
         if (remaining <= 0) {
@@ -381,7 +321,6 @@ function updateRateUI() {
         }
     }
     
-    // Update cooldown message
     const cooldownMsg = document.getElementById('cooldown-msg');
     if (cooldownMsg) {
         if (cooldownLeft > 0) {
@@ -409,8 +348,12 @@ async function handleFormSubmit(event) {
         return;
     }
     
-    if (!AUTH_TOKEN) {
-        showFeedback('❌ System not configured. Please contact admin.', 'error');
+    // Get session token first
+    showFeedback('🔄 Getting session token...', 'info');
+    const sessionToken = await getSessionToken();
+    
+    if (!sessionToken) {
+        showFeedback('❌ Unable to establish secure session. Please refresh and try again.', 'error');
         return;
     }
     
@@ -422,7 +365,6 @@ async function handleFormSubmit(event) {
     const email = sanitizeString(emailInput.value);
     const message = sanitizeString(messageInput.value);
     
-    // Validate fields
     if (!validateAllFields({ name, email, message })) {
         return;
     }
@@ -431,11 +373,10 @@ async function handleFormSubmit(event) {
         name: name,
         email: email,
         message: message,
-        token: AUTH_TOKEN,
+        sessionToken: sessionToken,  // ใช้ session token แทน hardcoded
         timestamp: new Date().toISOString(),
         userAgent: navigator.userAgent,
-        referrer: document.referrer || window.location.href,
-        sendNotification: true
+        referrer: document.referrer || window.location.href
     };
     
     const submitBtn = document.getElementById('submitBtn');
@@ -471,19 +412,14 @@ async function handleFormSubmit(event) {
         }
         
         if (response.ok && result.status === 'success') {
-            // Record successful send
             rateLimiter.recordSend();
             updateRateUI();
-            
-            // Show success message
             showFeedback('✅ Message sent successfully!', 'success');
             
-            // Reset form
             nameInput.value = '';
             emailInput.value = '';
             messageInput.value = '';
             
-            // Reset border colors
             nameInput.style.borderColor = '#e0e0e0';
             emailInput.style.borderColor = '#e0e0e0';
             messageInput.style.borderColor = '#e0e0e0';
@@ -499,14 +435,11 @@ async function handleFormSubmit(event) {
             showFeedback('⏰ Request timeout. Please try again.', 'error');
         } else if (error.message.includes('429') || error.message.includes('limit')) {
             showFeedback('📊 Too many requests. Please wait a moment.', 'error');
-            updateRateUI(); // Refresh rate limit display
-        } else if (error.message.includes('401') || error.message.includes('auth')) {
-            showFeedback('🔐 Authentication failed. Token may be expired.', 'error');
-            // Clear invalid token
-            localStorage.removeItem('form_auth_token_encrypted');
-            sessionStorage.removeItem('form_auth_token');
-            AUTH_TOKEN = null;
-            initializeToken();
+            updateRateUI();
+        } else if (error.message.includes('401') || error.message.includes('session')) {
+            showFeedback('🔐 Session expired. Please refresh and try again.', 'error');
+        } else if (error.message.includes('spam')) {
+            showFeedback('🚫 Message appears to be spam. Please check your content.', 'error');
         } else {
             showFeedback('❌ ' + (error.message || 'An error occurred. Please try again.'), 'error');
         }
@@ -587,7 +520,6 @@ function showFeedback(message, type) {
     feedbackEl.className = 'form-feedback ' + type;
     feedbackEl.style.display = 'block';
     
-    // Auto-hide after 5 seconds
     setTimeout(function() {
         if (feedbackEl.textContent === message) {
             feedbackEl.style.display = 'none';
@@ -602,7 +534,6 @@ function addCSRFProtection() {
     
     const forms = document.querySelectorAll('form');
     forms.forEach(function(form) {
-        // Check if CSRF input already exists
         let existing = form.querySelector('input[name="csrf_token"]');
         if (!existing) {
             const csrfInput = document.createElement('input');
@@ -626,23 +557,7 @@ function generateCSRFToken() {
     return btoa(random).substring(0, 32);
 }
 
-// ==================== ANALYTICS & TRACKING ====================
-
-function trackConversion() {
-    // Optional: Add your analytics tracking here
-    if (typeof gtag !== 'undefined') {
-        gtag('event', 'generate_lead', {
-            'event_category': 'form',
-            'event_label': 'contact_submission'
-        });
-    }
-    
-    if (FORM_CONFIG.ENABLE_DEBUG) {
-        console.log('Form submission tracked');
-    }
-}
-
-// ==================== EXPORT FOR DEBUGGING ====================
+// ==================== DEBUG ====================
 
 if (FORM_CONFIG.ENABLE_DEBUG) {
     window.formDebug = {
@@ -651,16 +566,15 @@ if (FORM_CONFIG.ENABLE_DEBUG) {
             localStorage.removeItem('form_rate_limit');
             location.reload();
         },
-        clearToken: function() {
-            localStorage.removeItem('form_auth_token_encrypted');
-            sessionStorage.removeItem('form_auth_token');
-            AUTH_TOKEN = null;
-            console.log('Token cleared');
-        },
-        getToken: function() { return AUTH_TOKEN; },
-        getConfig: function() { return FORM_CONFIG; }
+        getConfig: function() { return FORM_CONFIG; },
+        testSession: async function() {
+            const token = await getSessionToken();
+            console.log('Session token:', token);
+            return token;
+        }
     };
     
-    console.log('🐛 Debug mode enabled. Use window.formDebug to access utilities');
-    console.log('Commands: formDebug.getRateLimit(), formDebug.clearRateLimit(), formDebug.clearToken()');
+    console.log('🐛 Debug mode enabled');
+    console.log('🔒 Security: Session Token + Origin + Referer + Spam Detection');
+    console.log('📊 Commands: formDebug.testSession()');
 }
